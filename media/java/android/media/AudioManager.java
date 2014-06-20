@@ -15,7 +15,26 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
+ *
+ * This file was modified by Dolby Laboratories, Inc. The portions of the
+ * code that are surrounded by "DOLBY..." are copyrighted and
+ * licensed separately, as follows:
+ *
+ *  (C) 2014 Dolby Laboratories, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+*/
 
 package android.media;
 
@@ -2022,6 +2041,26 @@ public class AudioManager {
         public void dispatchAudioFocusChange(int focusChange, String id) {
             Message m = mAudioFocusEventHandlerDelegate.getHandler().obtainMessage(focusChange, id);
             mAudioFocusEventHandlerDelegate.getHandler().sendMessage(m);
+            // Send an intent to DsService, keeping it informed of the audio focus change
+        	Intent intent = new Intent("DS_AUDIO_FOCUS_CHANGE_ACTION");
+            intent.setPackage("com.dolby");
+            intent.putExtra("packageName", mContext.getOpPackageName());
+            switch (focusChange){
+                case AUDIOFOCUS_LOSS:
+                case AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                case AUDIOFOCUS_LOSS_TRANSIENT:
+                    intent.putExtra("focusChange", "loss");
+                    mContext.sendBroadcast(intent);
+                    break;
+                case AUDIOFOCUS_GAIN:
+                case AUDIOFOCUS_GAIN_TRANSIENT:
+                case AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK:
+                    intent.putExtra("focusChange", "gain");
+                    mContext.sendBroadcast(intent);
+                    break;
+                default:
+                    break;
+            }
         }
 
     };
@@ -2165,6 +2204,22 @@ public class AudioManager {
         return status;
     }
 
+    /**
+     *  @hide
+     *  Check if the specified App obtains the focus.
+     *  @param packageName the package name of the App.
+     *  @return ture if the App obtains the focus.
+     */
+    public boolean isAppInFocus(String packageName) {
+        boolean isFocus = false;
+        IAudioService service = getService();
+        try {
+            isFocus = service.isAppInFocus(packageName);
+        } catch (RemoteException e) {
+            Log.e(TAG, "Can't call isAppInFocus() on AudioService due to "+e);
+        }
+        return isFocus;
+    }
 
     //====================================================================
     // Remote Control

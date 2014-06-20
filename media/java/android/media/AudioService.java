@@ -12,6 +12,25 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file was modified by Dolby Laboratories, Inc. The portions of the
+ * code that are surrounded by "DOLBY..." are copyrighted and
+ * licensed separately, as follows:
+ *
+ *  (C) 2011-2014 Dolby Laboratories, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 
 package android.media;
@@ -3502,6 +3521,29 @@ public class AudioService extends IAudioService.Stub {
                     Settings.Global.AUDIO_SAFE_VOLUME_STATE,
                     state);
         }
+        private String findDeviceUniqueId(int device)
+        {
+            String uniqueId = null;
+            switch (device) {
+                case AudioSystem.DEVICE_OUT_BLUETOOTH_A2DP:
+                case AudioSystem.DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES:
+                case AudioSystem.DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER:
+                    uniqueId = mCurAudioRoutes.mBluetoothName.toString();
+                    break;
+                // TODO: Please test these 2 cases once usb audio is supported.
+                case AudioSystem.DEVICE_OUT_USB_ACCESSORY:
+                case AudioSystem.DEVICE_OUT_USB_DEVICE:
+                    uniqueId = mConnectedDevices.get(device);
+                    break;
+                // TODO: The name for a SCO bluetooth device is to be determined.
+                //       But will audio streams with MUSIC type be routed to SCO devices?
+                default:
+                    uniqueId = "";
+                    break;
+            }
+
+            return uniqueId;
+        }
 
         @Override
         public void handleMessage(Message msg) {
@@ -3619,6 +3661,11 @@ public class AudioService extends IAudioService.Stub {
                                         AudioSystem.FORCE_ANALOG_DOCK : AudioSystem.FORCE_NONE);
                     }
 
+                    // Send an intent to DsService when media_server restarts.
+                    Intent broadcast = new Intent("media_server_started");
+                    broadcast.setPackage("com.dolby");
+                    broadcast.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+                    mContext.sendBroadcast(broadcast);
                     // indicate the end of reconfiguration phase to audio HAL
                     AudioSystem.setParameters("restarting=false");
                     break;
@@ -3687,6 +3734,15 @@ public class AudioService extends IAudioService.Stub {
                         }
                     }
                     mRoutesObservers.finishBroadcast();
+                    // DOLBY_DAP_DEVICE_CHANGE
+                    Intent newIntent = new Intent("DOLBY_DEVICE_CHANGE");
+                    int newDevice = getDeviceForStream(AudioSystem.STREAM_MUSIC);
+                    newIntent.putExtra("Device", newDevice);
+                    // DOLBY_DAP_DEVICE_UNIQUE_ID_DETECTION
+                    String deviceUniqueId = findDeviceUniqueId(newDevice);
+                    newIntent.putExtra("DeviceUniqueId", deviceUniqueId);
+                    // Broadcast the intent
+                    sendStickyBroadcastToAll(newIntent);
                     break;
                 }
 
@@ -4327,6 +4383,9 @@ public class AudioService extends IAudioService.Stub {
 
     public int getCurrentAudioFocus() {
         return mMediaFocusControl.getCurrentAudioFocus();
+    }
+    public boolean isAppInFocus(String name) {
+        return mMediaFocusControl.isAppInFocus(name);
     }
 
     //==========================================================================================
