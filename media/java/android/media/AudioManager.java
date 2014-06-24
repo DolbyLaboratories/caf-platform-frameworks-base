@@ -2198,6 +2198,15 @@ public class AudioManager {
         try {
             status = service.abandonAudioFocus(mAudioFocusDispatcher,
                     getIdForAudioFocusListener(l));
+            // Send an intent to DsService, keeping it informed of the audio focus change
+            if(status == AUDIOFOCUS_REQUEST_GRANTED)
+            {
+                Intent intent = new Intent("DS_AUDIO_FOCUS_CHANGE_ACTION");
+                intent.setPackage("com.dolby");
+                intent.putExtra("packageName", mContext.getOpPackageName());
+                intent.putExtra("focusChange", "loss");
+                mContext.sendBroadcast(intent);
+            }
         } catch (RemoteException e) {
             Log.e(TAG, "Can't call abandonAudioFocus() on AudioService due to "+e);
         }
